@@ -28,6 +28,7 @@ Research-grade ingestion and AI extraction for sargassum / macroalgae pyrolysis 
 cp .env.example .env
 # add GOOGLE_AI_API_KEY and/or OPENROUTER_API_KEY to .env
 # add MONGODB_URI if you use MongoDB Atlas (otherwise default is local mongodb://127.0.0.1:27017/truesearch)
+# Put `.env` in the **repo root** (same folder as `package.json`), not only inside `server/`.
 docker compose up -d mongo grobid   # optional grobid until you parse PDFs
 npm install
 npm run dev

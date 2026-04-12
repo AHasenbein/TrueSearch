@@ -1,4 +1,11 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/** Root `.env` — npm workspaces often run the server with `cwd` = `server/`, which skips a repo-level `.env` if we only rely on `dotenv/config`. */
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 const openRouterBaseUrl =
   process.env.OPENROUTER_BASE_URL?.trim() || "https://openrouter.ai/api/v1";

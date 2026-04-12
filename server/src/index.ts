@@ -53,6 +53,13 @@ async function main() {
     process.exit(1);
   });
 
+  const mongoTarget = config.mongoUri.startsWith("mongodb+srv://")
+    ? "Atlas (mongodb+srv)"
+    : config.mongoUri.includes("127.0.0.1") || config.mongoUri.includes("localhost")
+      ? "local (127.0.0.1 / localhost)"
+      : "custom URI";
+  console.log(`MongoDB target: ${mongoTarget}`);
+
   try {
     await connectDb();
     console.log("MongoDB connected.");
@@ -60,7 +67,7 @@ async function main() {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("MongoDB connection failed:", msg);
     console.error(
-      "API is running; /api routes will return 503 until the database is reachable. Set MONGODB_URI in .env or run: docker compose up -d mongo"
+      "API is running; /api routes will return 503 until the database is reachable. Use MONGODB_URI in the repo-root .env (Atlas) or run: docker compose up -d mongo"
     );
   }
 }
