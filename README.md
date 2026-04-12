@@ -14,7 +14,7 @@ Research-grade ingestion and AI extraction for sargassum / macroalgae pyrolysis 
 
 3. **AI extraction**  
    - Strict JSON array with `metric`, `value`, `confidence_score`, `source_snippet`, optional `section`.  
-   - `POST /api/papers/:id/extract` uses **[OpenRouter](https://openrouter.ai/)** (`OPENROUTER_API_KEY`). Default model is **`google/gemini-2.0-flash-001`** (capable on long documents, usually inexpensive per token). Swap `OPENROUTER_MODEL` for e.g. `openai/gpt-4o-mini` or `deepseek/deepseek-chat` as you prefer cost vs. quality.
+   - `POST /api/papers/:id/extract` uses **Google AI Studio (Gemini)** when `GOOGLE_AI_API_KEY` is set (see [AI Studio keys](https://aistudio.google.com/apikey)), default `GOOGLE_GEMINI_MODEL=gemini-2.0-flash`. If Google returns rate limits / quota errors, the server **falls back to [OpenRouter](https://openrouter.ai/)** when `OPENROUTER_API_KEY` is set. You can use only Google, only OpenRouter, or both for resilience.
 
 4. **Storage**  
    - MongoDB collections `papers` and `extractions` with validation status.
@@ -26,7 +26,7 @@ Research-grade ingestion and AI extraction for sargassum / macroalgae pyrolysis 
 
 ```bash
 cp .env.example .env
-# add OPENROUTER_API_KEY to .env (get a key at https://openrouter.ai/)
+# add GOOGLE_AI_API_KEY and/or OPENROUTER_API_KEY to .env
 docker compose up -d mongo grobid   # optional grobid until you parse PDFs
 npm install
 npm run dev

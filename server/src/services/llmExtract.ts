@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 import { z } from "zod";
 import { config } from "../config.js";
@@ -38,6 +39,34 @@ ${documentText.slice(0, 120_000)}
 
 export type ProvenanceRow = z.infer<typeof rowSchema>;
 
+export type ExtractionRunMeta = {
+  usedProvider: "google" | "openrouter";
+  /** Model identifier for logs / UI */
+  usedModel: string;
+};
+
+export type ProvenanceExtractionResult = {
+  rows: ProvenanceRow[];
+} & ExtractionRunMeta;
+
+function parseJsonArrayFromModelOutput(raw: string): ProvenanceRow[] {
+  const trimmed = raw.trim();
+  const jsonStart = trimmed.indexOf("[");
+  const jsonEnd = trimmed.lastIndexOf("]");
+  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
+    throw new Error("Model did not return a JSON array");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed.slice(jsonStart, jsonEnd + 1));
+  } catch {
+    throw new Error("Failed to parse JSON from model output");
+  }
+
+  return responseSchema.parse(parsed);
+}
+
 function openRouterClient(): OpenAI {
   const defaultHeaders: Record<string, string> = {};
   if (config.openRouterHttpReferer) {
@@ -54,11 +83,7 @@ function openRouterClient(): OpenAI {
   });
 }
 
-export async function extractWithProvenance(documentText: string): Promise<ProvenanceRow[]> {
-  if (!config.openRouterApiKey) {
-    throw new Error("OPENROUTER_API_KEY is not set");
-  }
-
+async function extractViaOpenRouter(documentText: string): Promise<ProvenanceExtractionResult> {
   const client = openRouterClient();
   const completion = await client.chat.completions.create({
     model: config.openRouterModel,
@@ -70,18 +95,94 @@ export async function extractWithProvenance(documentText: string): Promise<Prove
   });
 
   const raw = completion.choices[0]?.message?.content?.trim() ?? "";
-  const jsonStart = raw.indexOf("[");
-  const jsonEnd = raw.lastIndexOf("]");
-  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
-    throw new Error("Model did not return a JSON array");
+  const rows = parseJsonArrayFromModelOutput(raw);
+  return {
+    rows,
+    usedProvider: "openrouter",
+    usedModel: config.openRouterModel,
+  };
+}
+
+async function extractViaGoogleGemini(documentText: string): Promise<ProvenanceExtractionResult> {
+  const genAI = new GoogleGenerativeAI(config.googleAiApiKey);
+  const model = genAI.getGenerativeModel({
+    model: config.googleGeminiModel,
+    systemInstruction: SYSTEM,
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json",
+    },
+  });
+
+  const result = await model.generateContent(userPrompt(documentText));
+  const raw = result.response.text()?.trim() ?? "";
+  const rows = parseJsonArrayFromModelOutput(raw);
+  return {
+    rows,
+    usedProvider: "google",
+    usedModel: config.googleGeminiModel,
+  };
+}
+
+/** True when the provider is asking us to back off (quota, RPM, concurrency). */
+function isLikelyThrottleError(err: unknown): boolean {
+  if (err == null) return false;
+
+  if (typeof err === "object") {
+    const o = err as Record<string, unknown>;
+    const status = o.status ?? o.statusCode ?? o.code;
+    if (status === 429 || status === "429") return true;
+
+    const nested = o.error as Record<string, unknown> | undefined;
+    if (nested && (nested.code === 429 || nested.status === "RESOURCE_EXHAUSTED")) {
+      return true;
+    }
+
+    const msg = String(o.message ?? nested?.message ?? o.error ?? "");
+    const lower = msg.toLowerCase();
+    if (
+      lower.includes("resource exhausted") ||
+      lower.includes("resource_exhausted") ||
+      lower.includes("too many requests") ||
+      lower.includes("rate limit") ||
+      lower.includes("quota exceeded") ||
+      /\b429\b/.test(lower)
+    ) {
+      return true;
+    }
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1));
-  } catch {
-    throw new Error("Failed to parse JSON from model output");
+  const s = String(err);
+  return /\b429\b|resource exhausted|rate limit|quota/i.test(s);
+}
+
+/**
+ * Prefer Google AI Studio (Gemini) when `GOOGLE_AI_API_KEY` is set.
+ * On throttle / quota errors, fall back to OpenRouter if `OPENROUTER_API_KEY` is set.
+ * If only OpenRouter is configured, uses OpenRouter directly.
+ */
+export async function extractWithProvenance(
+  documentText: string
+): Promise<ProvenanceExtractionResult> {
+  const hasGoogle = Boolean(config.googleAiApiKey);
+  const hasOpenRouter = Boolean(config.openRouterApiKey);
+
+  if (!hasGoogle && !hasOpenRouter) {
+    throw new Error(
+      "Set GOOGLE_AI_API_KEY and/or OPENROUTER_API_KEY (need at least one LLM provider)"
+    );
   }
 
-  return responseSchema.parse(parsed);
+  if (hasGoogle) {
+    try {
+      return await extractViaGoogleGemini(documentText);
+    } catch (err) {
+      if (isLikelyThrottleError(err) && hasOpenRouter) {
+        return await extractViaOpenRouter(documentText);
+      }
+      throw err;
+    }
+  }
+
+  return extractViaOpenRouter(documentText);
 }

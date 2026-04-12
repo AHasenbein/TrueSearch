@@ -5,8 +5,6 @@ import { Extraction } from "../models/Extraction.js";
 import { processPdfWithGrobid, teiXmlToPlainText } from "../services/grobid.js";
 import { extractWithProvenance } from "../services/llmExtract.js";
 import { fetchAndExtractText } from "../services/scraper.js";
-import { config } from "../config.js";
-
 const router = Router();
 
 router.get("/", async (_req, res) => {
@@ -81,10 +79,11 @@ router.post("/:id/extract", async (req, res) => {
   }
 
   try {
-    const rows = await extractWithProvenance(text);
+    const extraction = await extractWithProvenance(text);
     await Extraction.deleteMany({ paperId: paper._id, status: "pending" });
+    const modelLabel = `${extraction.usedProvider}:${extraction.usedModel}`;
     const docs = await Extraction.insertMany(
-      rows.map((r) => ({
+      extraction.rows.map((r) => ({
         paperId: paper._id,
         metric: r.metric,
         value: r.value,
@@ -92,10 +91,14 @@ router.post("/:id/extract", async (req, res) => {
         sourceSnippet: r.source_snippet,
         section: r.section,
         status: "pending" as const,
-        model: config.openRouterModel,
+        model: modelLabel,
       }))
     );
-    res.json({ extractions: docs });
+    res.json({
+      extractions: docs,
+      usedProvider: extraction.usedProvider,
+      usedModel: extraction.usedModel,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "extract failed";
     res.status(500).json({ error: msg });

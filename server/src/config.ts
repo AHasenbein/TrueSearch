@@ -20,4 +20,9 @@ export const config = {
   /** Optional OpenRouter app attribution (https://openrouter.ai/docs/app-attribution) */
   openRouterHttpReferer: process.env.OPENROUTER_HTTP_REFERER?.trim() || "",
   openRouterAppTitle: process.env.OPENROUTER_APP_TITLE?.trim() || "TrueSearch",
+
+  /** Google AI Studio / Gemini API (https://aistudio.google.com/apikey) — primary when set */
+  googleAiApiKey: process.env.GOOGLE_AI_API_KEY?.trim() || "",
+  /** Gemini model id for the Google API (not the OpenRouter slug) */
+  googleGeminiModel: process.env.GOOGLE_GEMINI_MODEL?.trim() || "gemini-2.0-flash",
 };
