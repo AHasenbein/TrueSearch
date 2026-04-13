@@ -14,6 +14,13 @@ const openRouterBaseUrl =
 const defaultOpenRouterModel =
   process.env.OPENROUTER_MODEL?.trim() || "google/gemini-2.0-flash-001";
 
+function envNumber(key: string, fallback: number): number {
+  const raw = process.env[key];
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export const config = {
   port: Number(process.env.PORT) || 8787,
   mongoUri: process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/truesearch",
@@ -32,4 +39,16 @@ export const config = {
   googleAiApiKey: process.env.GOOGLE_AI_API_KEY?.trim() || "",
   /** Gemini model id for the Google API (not the OpenRouter slug) */
   googleGeminiModel: process.env.GOOGLE_GEMINI_MODEL?.trim() || "gemini-2.0-flash",
+  defaultMetricSearchLimit: envNumber("DEFAULT_METRIC_SEARCH_LIMIT", 12),
+  defaultWebSearchLimit: envNumber("DEFAULT_WEB_SEARCH_LIMIT", 10),
+  priceNormalizeStrict: process.env.PRICE_NORMALIZE_STRICT === "true",
+  fxUsdPerCurrency: {
+    EUR: envNumber("FX_USD_PER_EUR", 1.08),
+    GBP: envNumber("FX_USD_PER_GBP", 1.27),
+    JPY: envNumber("FX_USD_PER_JPY", 0.0068),
+    CNY: envNumber("FX_USD_PER_CNY", 0.14),
+    AUD: envNumber("FX_USD_PER_AUD", 0.66),
+    CAD: envNumber("FX_USD_PER_CAD", 0.74),
+    INR: envNumber("FX_USD_PER_INR", 0.012),
+  } as Record<string, number>,
 };

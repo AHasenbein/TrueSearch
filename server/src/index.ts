@@ -6,6 +6,7 @@ import { connectDb } from "./db.js";
 import { ingestRouter } from "./routes/ingest.js";
 import { papersRouter } from "./routes/papers.js";
 import { extractionsRouter } from "./routes/extractions.js";
+import { getSearchRuntimeStats, searchRouter } from "./routes/search.js";
 
 const app = express();
 app.use(cors({ origin: config.corsOrigin }));
@@ -27,15 +28,18 @@ app.use((req, res, next) => {
 });
 
 app.get("/api/health", (_req, res) => {
+  const runtime = getSearchRuntimeStats();
   res.json({
     ok: true,
     db: mongoose.connection.readyState === 1,
+    searchRuntime: runtime,
   });
 });
 
 app.use("/api/ingest", ingestRouter);
 app.use("/api/papers", papersRouter);
 app.use("/api/extractions", extractionsRouter);
+app.use("/api/search", searchRouter);
 
 async function main() {
   const server = app.listen(config.port, () => {

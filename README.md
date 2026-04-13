@@ -22,6 +22,14 @@ Research-grade ingestion and AI extraction for sargassum / macroalgae pyrolysis 
 5. **Dashboard**  
    - React + Tailwind (`web/`): table + side panel, Approve / Save edit / Reject.
 
+6. **Metric search + aggregation**
+   - `POST /api/search/runs` starts a staged search pipeline (query expansion -> literature discovery -> targeted web discovery -> extraction -> normalization).
+   - `GET /api/search/runs/:id` returns live run state, including step statuses and source outcomes.
+   - `GET /api/search/runs/:id/stream` streams progress events (SSE).
+   - `POST /api/search/metric` remains as a compatibility shim that runs and returns a completed snapshot.
+   - Price values are normalized to USD per metric ton when possible, with warnings/confidence when assumptions are needed.
+   - Summary includes weighted average, min/max, normalized count, and weighted confidence.
+
 ## Quickstart
 
 ```bash
@@ -56,6 +64,37 @@ curl -s -X POST http://127.0.0.1:8787/api/papers/PAPER_ID/parse \
   -H 'Content-Type: application/json' \
   -d '{"mode":"grobid_pdf","pdfPath":"/absolute/path/to/paper.pdf"}'
 ```
+
+### Metric search endpoint
+
+```bash
+curl -s -X POST http://127.0.0.1:8787/api/search/runs \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "metricQuery":"amount of sargassum that washes up in florida in tons",
+    "maxPapers": 28,
+    "webLimit": 12
+  }'
+```
+
+Then poll:
+
+```bash
+curl -s http://127.0.0.1:8787/api/search/runs/RUN_ID
+```
+
+Run response includes:
+- `steps[]` with status/message
+- `sources[]` with red/green-compatible outcomes (`matched`, `no_match`, `failed`)
+- `expandedQueries` used for higher-recall retrieval
+- `normalizedSummary` for weighted aggregate
+
+### Metric-search environment knobs
+
+- `DEFAULT_METRIC_SEARCH_LIMIT` default batch size for `/api/search/metric`
+- `DEFAULT_WEB_SEARCH_LIMIT` max targeted web candidates per run
+- `PRICE_NORMALIZE_STRICT=true|false` strict mode requires explicit currency + unit
+- `FX_USD_PER_*` static conversion rates used for deterministic currency normalization
 
 ## License
 
