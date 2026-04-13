@@ -75,7 +75,7 @@ const searchRunSchema = new Schema(
     normalizedSummary: { type: Schema.Types.Mixed },
     error: { type: String },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 export type SearchRunDocument = InferSchemaType<typeof searchRunSchema> & {

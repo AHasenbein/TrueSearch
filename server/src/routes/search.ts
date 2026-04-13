@@ -106,15 +106,8 @@ async function processRun(runId: string): Promise<void> {
   await run.save();
 
   try {
-    const result = await runMetricSearch(
-      {
-        metricQuery: run.metricQuery,
-        maxPapers: run.maxPapers,
-        webLimit: run.webLimit,
-        yearMin: run.yearMin ?? undefined,
-        yearMax: run.yearMax ?? undefined,
-      },
-      async (event) => {
+    const handleProgressEvent = async (event: MetricSearchProgressEvent) => {
+      try {
         if (event.type === "step") {
           await updateStep(runId, event.key, event.status, event.message);
         } else {
@@ -141,6 +134,25 @@ async function processRun(runId: string): Promise<void> {
           await latest.save();
         }
         emitSse(runId, event);
+      } catch (err) {
+        await appendEvent(runId, {
+          type: "system",
+          level: "error",
+          message: `progress-event failure: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+    };
+
+    const result = await runMetricSearch(
+      {
+        metricQuery: run.metricQuery,
+        maxPapers: run.maxPapers,
+        webLimit: run.webLimit,
+        yearMin: run.yearMin ?? undefined,
+        yearMax: run.yearMax ?? undefined,
+      },
+      (event) => {
+        void handleProgressEvent(event);
       }
     );
 
